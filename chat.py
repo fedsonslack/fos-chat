@@ -76,9 +76,12 @@ class ChatBackend(object):
         """Maintains a slack RTM subscription in the background."""
         gevent.spawn(self.run)
 
+    @classmethod
     def gravatarUrl(self, username):
-        default_gravatar = "http://lorempixel.com/48/48"
-        return "https://www.gravatar.com/avatar/%s?default=%s" % (hashlib.md5(username.lower()).hexdigest() , default_gravatar)
+        default_gravatar = "http://fedsonslack.com/img/fos_icon.png"
+        grav_url = "https://www.gravatar.com/avatar/%s?default=%s" % (hashlib.md5(username.lower()).hexdigest() , default_gravatar)
+        return grav_url
+
 
 
 chats = ChatBackend()
