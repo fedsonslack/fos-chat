@@ -51,7 +51,7 @@ ConsoleChat = {
     }
     var url;
     if(location.host.indexOf("fedsonslack.com") > -1){
-      url = "//fos-chat.herokuapp.com/"
+      url = "//fos-chat.herokuapp.com:80"
     }else{
       url = '//' + document.domain + ':' + location.port
     }
