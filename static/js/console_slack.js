@@ -49,9 +49,14 @@ ConsoleChat = {
       console.error("Bugger off, you're already logged in!");
       return false
     }
-
-    ConsoleChat.inbox = io.connect('//' + document.domain + ':' + location.port + '/receive');
-    ConsoleChat.outbox = io.connect('//' + document.domain + ':' + location.port + '/submit');
+    var url;
+    if(location.host.indexOf("fedsonslack.com") > -1){
+      url = "//fos-chat.herokuapp.com/"
+    }else{
+      url = '//' + document.domain + ':' + location.port
+    }
+    ConsoleChat.inbox = io.connect(url + '/receive');
+    ConsoleChat.outbox = io.connect(url + '/submit');
 
     ConsoleChat.inbox.on("message", function (message) {
       ConsoleChat.speak(message)
