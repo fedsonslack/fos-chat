@@ -1,95 +1,111 @@
-# -*- coding: utf-8 -*-
-
 """
 Chat Server
 ===========
 
 This simple application uses WebSockets to run a primitive chat server.
 """
+import hashlib
+import json
 
 import os
-import logging
-import redis
 import gevent
 from flask import Flask, render_template
-from flask_sockets import Sockets
+from flask.ext.socketio import SocketIO, emit
+import time
+from slackclient import SlackClient
 
-REDIS_URL = os.environ['REDISCLOUD_URL']
-REDIS_CHAN = 'chat'
+SLACK_CHANNEL = os.environ.get("SLACK_CHANNEL","C03JWFXGJ")
+SLACK_API_TOKEN = os.environ['SLACK_API_TOKEN']
 
 app = Flask(__name__)
 app.debug = 'DEBUG' in os.environ
 
-sockets = Sockets(app)
-redis = redis.from_url(REDIS_URL)
-
+socketio = SocketIO(app)
 
 
 class ChatBackend(object):
-    """Interface for registering and updating WebSocket clients."""
+    """Interface for listening on slack RTM api and shoot events!"""
 
     def __init__(self):
-        self.clients = list()
-        self.pubsub = redis.pubsub()
-        self.pubsub.subscribe(REDIS_CHAN)
+        self.users = {}
+        self.sc = SlackClient(SLACK_API_TOKEN)
+        self.connected_to_rtm = False
 
-    def __iter_data(self):
-        for message in self.pubsub.listen():
-            data = message.get('data')
-            if message['type'] == 'message':
-                app.logger.info(u'Sending message: {}'.format(data))
-                yield data
+    def send_to_slack(self, msg):
+        msg = json.loads(msg)
+        post_data = {
+            "channel": SLACK_CHANNEL,
+             "text": msg["text"],
+             "username": msg["username"],
+             "icon_url" : self.gravatarUrl(msg["username"])
+        }
+        self.sc.server.api_call("chat.postMessage", **post_data)
 
-    def register(self, client):
-        """Register a WebSocket connection for Redis updates."""
-        self.clients.append(client)
-
-    def send(self, client, data):
+    def send_to_console(self, msg):
         """Send given data to the registered client.
         Automatically discards invalid connections."""
-        try:
-            client.send(data)
-        except Exception:
-            self.clients.remove(client)
+        print "Received a message through slack API: %s" % msg
+        if(msg.get("subtype","") == "bot_message"):
+          msg.update({
+              "real_name" : "bot",
+              "profile": {
+                    "image_32" : msg["icons"]["image_48"]
+                }
+          })
+        elif("ok" in self.users and self.users["ok"] and "user" in msg):
+            user = next((user for user in self.users["members"] if user['id'] == msg["user"]), None)
+            msg.update(user) if user is not None else ""
+
+        socketio.emit('message', msg, namespace='/receive')
 
     def run(self):
-        """Listens for new messages in Redis, and sends them to clients."""
-        for data in self.__iter_data():
-            for client in self.clients:
-                gevent.spawn(self.send, client, data)
+        """Listens for new messages in slack, and sends them to clients."""
+        self.users = json.loads(self.sc.server.api_call('users.list'))
+        if self.sc.rtm_connect():
+            print "Connected to slack RTM"
+            socketio.emit('rtm_connected', namespace='/receive')
+            self.connected_to_rtm = True
+            while True:
+                for msg in self.sc.rtm_read():
+                    if msg["type"] == "message" and msg["channel"] == SLACK_CHANNEL:
+                        gevent.spawn(self.send_to_console , msg)
+                time.sleep(1)
 
     def start(self):
-        """Maintains Redis subscription in the background."""
+        """Maintains a slack RTM subscription in the background."""
         gevent.spawn(self.run)
+
+    def gravatarUrl(self, username):
+        default_gravatar = "http://lorempixel.com/48/48"
+        return "https://www.gravatar.com/avatar/%s?default=%s" % (hashlib.md5(username.lower()).hexdigest() , default_gravatar)
+
 
 chats = ChatBackend()
 chats.start()
-
 
 @app.route('/')
 def hello():
     return render_template('index.html')
 
-@sockets.route('/submit')
-def inbox(ws):
-    """Receives incoming chat messages, inserts them into Redis."""
-    while ws.socket is not None:
-        # Sleep to prevent *contstant* context-switches.
-        gevent.sleep(0.1)
-        message = ws.receive()
+@socketio.on('connect', namespace="/submit")
+def handle_connection():
+    print "client connected! and conneciton is : %s" % chats.connected_to_rtm
+    if chats.connected_to_rtm:
+        emit('rtm_connected', namespace='/submit')
 
-        if message:
-            app.logger.info(u'Inserting message: {}'.format(message))
-            redis.publish(REDIS_CHAN, message)
+@socketio.on('message', namespace="/submit")
+def handle_message(message):
+    print('received message from console: ' + message)
+    chats.send_to_slack(message)
 
-@sockets.route('/receive')
-def outbox(ws):
-    """Sends outgoing chat messages, via `ChatBackend`."""
-    chats.register(ws)
 
-    while ws.socket is not None:
-        # Context switch while `ChatBackend.start` is running in the background.
-        gevent.sleep()
+@socketio.on('message', namespace="/receive")
+def handle_receive(message):
+    print('hmmm dunno: ' + message)
+
+
+if __name__ == '__main__':
+    socketio.run(app)
 
 
 
