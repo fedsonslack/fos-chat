@@ -47,6 +47,8 @@ ConsoleChat = {
   }
 
 };
+
+
 ConsoleChat.init();
 
 login = function (username) {
