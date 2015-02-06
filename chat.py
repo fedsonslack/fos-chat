@@ -70,6 +70,7 @@ class ChatBackend(object):
                     if msg["type"] == "message" and msg["channel"] == SLACK_CHANNEL:
                         gevent.spawn(self.send_to_console , msg)
                 time.sleep(1)
+                gevent.sleep()
 
     def start(self):
         """Maintains a slack RTM subscription in the background."""
@@ -92,11 +93,13 @@ def handle_connection():
     print "client connected! and conneciton is : %s" % chats.connected_to_rtm
     if chats.connected_to_rtm:
         emit('rtm_connected', namespace='/submit')
+    gevent.sleep()
 
 @socketio.on('message', namespace="/submit")
 def handle_message(message):
     print('received message from console: ' + message)
     chats.send_to_slack(message)
+    gevent.sleep()
 
 
 @socketio.on('message', namespace="/receive")
