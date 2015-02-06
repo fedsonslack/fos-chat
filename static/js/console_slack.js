@@ -48,6 +48,7 @@ ConsoleChat = {
 
 };
 ConsoleChat.init();
+
 login = function (username) {
   if(typeof username !== "string" || username.length == 0){
     console.error('Please use a good nickname!')
