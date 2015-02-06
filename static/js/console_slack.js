@@ -29,8 +29,8 @@ ConsoleChat = {
       console.error("Bugger off, you're already logged in!");
       return false
     }
-    ConsoleChat.inbox = io.connect('ws://' + document.domain + ':' + location.port + '/receive');
-    ConsoleChat.outbox = io.connect('ws://' + document.domain + ':' + location.port + '/submit');
+    ConsoleChat.inbox = io.connect('wss://' + document.domain + ':' + location.port + '/receive');
+    ConsoleChat.outbox = io.connect('wss://' + document.domain + ':' + location.port + '/submit');
 
     ConsoleChat.inbox.on("message", function (message) {
       ConsoleChat.speak(message)
