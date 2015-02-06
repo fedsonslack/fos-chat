@@ -29,9 +29,9 @@ ConsoleChat = {
       console.error("Bugger off, you're already logged in!");
       return false
     }
-    var use_secure = (location.protocol.indexOf('https') > -1);
-    ConsoleChat.inbox = io.connect('wss://' + document.domain + ':' + location.port + '/receive', {secure: use_secure});
-    ConsoleChat.outbox = io.connect('wss://' + document.domain + ':' + location.port + '/submit',{secure: use_secure});
+
+    ConsoleChat.inbox = io.connect('//' + document.domain + ':' + location.port + '/receive');
+    ConsoleChat.outbox = io.connect('//' + document.domain + ':' + location.port + '/submit');
 
     ConsoleChat.inbox.on("message", function (message) {
       ConsoleChat.speak(message)
