@@ -42,7 +42,7 @@ ConsoleChat = {
   init: function () {
     console.log('Hi there, welcome to FedsOnSlack.com!'.h1);
     console.log("The console here is".text +" interactive ".yellow.bold + "and you can actually chat with our community directly from here!".text);
-    console.log("Type login('".text + "YOUR_EMAIL".yellow.bold + "') to see it in action. (hint: use gravatar email as your nick for avatars)".text);
+    console.log("Type login('".text + "YOUR_EMAIL_OR_NICKNAME".yellow.bold + "') to see it in action. (hint: use gravatar email as your nick for avatars)".text);
   },
   login: function(){
     if(ConsoleChat.is_loggedin){
@@ -62,9 +62,12 @@ ConsoleChat = {
       ConsoleChat.speak(message)
     });
 
-    ConsoleChat.outbox.on("rtm_connected", function () {
+    ConsoleChat.outbox.on("rtm_connected", function (data) {
       ConsoleChat.is_loggedin = true;
-      console.log("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nYou are now connected to fedsonslack.com ".text + "#console ".bold+ "channel!".text);
+      var members = "" + data.members;
+      var connections = "" + data.connections;
+      console.log("\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nYou are now connected to fedsonslack.com ".text + "#open_chat ".bold+ "channel!".text);
+      console.log(members.bold +" members in channel and ".text + connections.bold + " visitors just like you!".text);
       console.log("Use".text + " say(\"\") ".bold.yellow + "to speak with others!".text)
     });
 
@@ -78,7 +81,8 @@ login = function (username) {
     console.error('Please use a good nickname!')
   }
   ConsoleChat.username = username;
-  ConsoleChat.login(ConsoleChat.username)
+  ConsoleChat.login(ConsoleChat.username);
+  return "Ok, hang on, connecting you to fedsonslack #open_chat channel"
 };
 login.toString = function(username){
   ConsoleChat.login(); return " ";

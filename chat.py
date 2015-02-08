@@ -27,9 +27,11 @@ class ChatBackend(object):
     """Interface for listening on slack RTM api and shoot events!"""
 
     def __init__(self):
+        self.socket_connections = 0
         self.users = {}
         self.sc = SlackClient(SLACK_API_TOKEN)
         self.connected_to_rtm = False
+        self.channel_info = {}
 
     def send_to_slack(self, msg):
         msg = json.loads(msg)
@@ -61,6 +63,7 @@ class ChatBackend(object):
     def run(self):
         """Listens for new messages in slack, and sends them to clients."""
         self.users = json.loads(self.sc.server.api_call('users.list'))
+        self.update_member_count()
         if self.sc.rtm_connect():
             print "Connected to slack RTM"
             socketio.emit('rtm_connected', namespace='/receive')
@@ -76,12 +79,14 @@ class ChatBackend(object):
         """Maintains a slack RTM subscription in the background."""
         gevent.spawn(self.run)
 
+    def update_member_count(self):
+        self.channel_info = json.loads(self.sc.server.api_call("channels.info", **{"channel": SLACK_CHANNEL}))
+
     @classmethod
     def gravatarUrl(self, username):
         default_gravatar = "http://fedsonslack.com/img/fos_icon.png"
         grav_url = "https://www.gravatar.com/avatar/%s?default=%s" % (hashlib.md5(username.lower()).hexdigest() , default_gravatar)
         return grav_url
-
 
 
 chats = ChatBackend()
@@ -93,10 +98,22 @@ def hello():
 
 @socketio.on('connect', namespace="/submit")
 def handle_connection():
-    print "client connected! and conneciton is : %s" % chats.connected_to_rtm
+    print "client connected! and connection is : %s" % chats.connected_to_rtm
+    chats.socket_connections += 1
     if chats.connected_to_rtm:
-        emit('rtm_connected', namespace='/submit')
+        params = {
+            "members": len(chats.channel_info["channel"]["members"]),
+            "connections": chats.socket_connections - 1
+        }
+        emit('rtm_connected',params, namespace='/submit')
+    print "connected again! connections are now at %s" % chats.socket_connections
+
     gevent.sleep()
+
+@socketio.on('disconnect', namespace="/submit")
+def handle_disconnection():
+    chats.socket_connections -= 1
+    print "another one bites the dust! connections are now at %s" % chats.socket_connections
 
 @socketio.on('message', namespace="/submit")
 def handle_message(message):
@@ -111,7 +128,17 @@ def handle_receive(message):
 
 
 if __name__ == '__main__':
-    socketio.run(app)
+    from socketio.server import SocketIOServer
+    from socketio.namespace import BaseNamespace
+    from debugger import SocketIODebugger
+    app.debug=True
+    class MyNamespace(BaseNamespace):
+      def on_my_message(self, data):
+          handle_message()
+    app = SocketIODebugger(app, evalex=True, namespace=MyNamespace)
+
+    SocketIOServer(('localhost', 5000), app, resource='socket.io', policy_server=False).serve_forever()
+    # socketio.run(app)
 
 
 
